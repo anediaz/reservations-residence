@@ -14,6 +14,13 @@
   gap: 24px;
 }
 
+.tagline-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 12px;
+}
+
 .logo-mark {
   color: var(--accent);
   display: flex;
@@ -32,16 +39,16 @@
 }
 
 .logo-text {
-  font-size: 42px;
-  font-weight: 300;
-  letter-spacing: -1px;
+  font-size: 72px;
+  font-weight: 700;
+  letter-spacing: 2px;
   margin: 0;
   color: var(--text-h);
   text-align: center;
-  line-height: 1.2;
+  line-height: 1.1;
 
   @media (max-width: 640px) {
-    font-size: 28px;
+    font-size: 44px;
   }
 }
 
@@ -64,9 +71,16 @@
   }
 }
 
-.cta {
+.cta-group {
   margin-top: 16px;
-  padding: 14px 40px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: center;
+}
+
+.cta {
+  padding: 14px 32px;
   font-size: 16px;
   font-weight: 500;
   font-family: var(--sans);
@@ -76,6 +90,8 @@
   border-radius: 8px;
   cursor: pointer;
   letter-spacing: 0.3px;
+  text-decoration: none;
+  display: inline-block;
   transition: opacity 0.2s, transform 0.2s;
 
   &:hover {
@@ -91,6 +107,19 @@
     outline: 2px solid var(--accent);
     outline-offset: 3px;
   }
+}
+
+.cta-secondary {
+  background: transparent;
+  color: var(--accent);
+  border: 2px solid var(--accent);
+}
+
+.page {
+  display: flex;
+  min-height: 100svh;
+  align-items: center;
+  justify-content: center;
 }
 
 .landing-footer {
