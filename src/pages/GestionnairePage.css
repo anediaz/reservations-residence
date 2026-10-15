@@ -1,0 +1,21 @@
+.manager-page {
+  padding: 24px;
+}
+
+.manager-shell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+}
+
+.manager-error {
+  color: #d92d20;
+}
+
+.manager-config-warning {
+  color: var(--text);
+  max-width: 440px;
+  text-align: center;
+}

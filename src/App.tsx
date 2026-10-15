@@ -2,6 +2,7 @@ import { Routes, Route, Link } from 'react-router-dom'
 import './App.css'
 import ResidentPage from './pages/ResidentPage'
 import GestionnairePage from './pages/GestionnairePage'
+import { ManagerAuthProvider } from './auth/ManagerAuthContext'
 
 function Landing() {
   return (
@@ -67,7 +68,14 @@ function App() {
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/resident" element={<ResidentPage />} />
-      <Route path="/gestionnaire" element={<GestionnairePage />} />
+      <Route
+        path="/gestionnaire"
+        element={
+          <ManagerAuthProvider>
+            <GestionnairePage />
+          </ManagerAuthProvider>
+        }
+      />
     </Routes>
   )
 }
