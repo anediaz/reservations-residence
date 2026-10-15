@@ -52,13 +52,6 @@
   }
 }
 
-.logo-separator {
-  @media (max-width: 400px) {
-    display: block;
-    height: 0;
-  }
-}
-
 .tagline {
   font-size: 18px;
   color: var(--text);
