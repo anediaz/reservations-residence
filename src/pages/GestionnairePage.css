@@ -19,3 +19,96 @@
   max-width: 440px;
   text-align: center;
 }
+
+.manager-dashboard {
+  padding: 24px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.manager-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.manager-header h1 {
+  margin: 0;
+  font-size: 32px;
+}
+
+.manager-header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.manager-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 24px;
+}
+
+.manager-tab {
+  padding: 10px 20px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.manager-tab-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.manager-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.manager-table th,
+.manager-table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  vertical-align: top;
+}
+
+.manager-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.manager-actions .cta {
+  padding: 8px 16px;
+  font-size: 14px;
+}
+
+.manager-flag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  margin-right: 6px;
+  margin-bottom: 4px;
+}
+
+.manager-flag-conflict {
+  background: #fee4e2;
+  color: #b42318;
+}
+
+.manager-flag-unknown {
+  background: #fef0c7;
+  color: #93370d;
+}

@@ -4,6 +4,7 @@ export interface ManagerSession {
   email: string
   name: string
   role: 'manager'
+  idToken: string
 }
 
 export interface ManagerAuthValue {

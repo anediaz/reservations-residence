@@ -31,7 +31,7 @@ export function ManagerAuthProvider({ children }: { children: ReactNode }) {
     setError(null)
     try {
       const result = await callApi<AuthenticateResponse>('authenticate', { idToken })
-      setManager({ email: result.email, name: result.name, role: result.role })
+      setManager({ email: result.email, name: result.name, role: result.role, idToken })
       setStatus('idle')
     } catch (err) {
       setManager(null)
