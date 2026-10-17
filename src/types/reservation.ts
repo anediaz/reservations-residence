@@ -6,6 +6,7 @@ export type ReservationStatus =
   | 'refused'
   | 'expired'
   | 'cancelled'
+  | 'blocked'
 
 export interface ReservationRequest {
   reservation_id: string

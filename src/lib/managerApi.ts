@@ -27,6 +27,16 @@ export function listReservations(idToken: string, status?: ReservationStatus): P
   return callApi('listReservations', { idToken, filters: status ? { status } : {} })
 }
 
+export function blockDates(
+  idToken: string,
+  resourceId: string,
+  startAt: string,
+  endAt: string,
+  reason: string
+): Promise<{ ok: true; reservation_id: string }> {
+  return callApi('blockDates', { idToken, resourceId, startAt, endAt, reason })
+}
+
 export function listResidents(idToken: string): Promise<Resident[]> {
   return callApi('listResidents', { idToken })
 }

@@ -19,6 +19,7 @@
     confirmPayment: handleConfirmPayment,
     adminCancel: handleAdminCancel,
     listReservations: handleListReservations,
+    blockDates: handleBlockDates,
     listResidents: handleListResidents,
     upsertResident: handleUpsertResident,
     revokeResident: handleRevokeResident,
@@ -67,7 +68,7 @@
       return String(r.email || '').toLowerCase()
     })
     var blocking = all.filter(function (r) {
-      return r.status === 'pending_payment' || r.status === 'confirmed'
+      return r.status === 'pending_payment' || r.status === 'confirmed' || r.status === 'blocked'
     })
 
     var requests = all.filter(function (r) {
@@ -106,13 +107,307 @@
     }
 
     var holdExpiresAt = new Date(Date.now() + HOLD_HOURS * 60 * 60 * 1000)
-    updateRow(RESERVATIONS_SHEET, found.rowNumber, {
+    var updates = {
       status: 'pending_payment',
       hold_expires_at: holdExpiresAt,
-    })
+    }
+
+    found.record.hold_expires_at = holdExpiresAt
+    var eventId = upsertCalendarEventForReservation(found.record, 'pending_payment')
+    if (eventId) {
+      updates.calendar_event_id = eventId
+    }
+
+    updateRow(RESERVATIONS_SHEET, found.rowNumber, updates)
     appendAuditLog(manager.email, 'request_approved', body.reservationId, '')
 
     return { ok: true }
+  }
+
+  var CALENDAR_EVENT_STYLES = {
+    requested: { titlePrefix: 'Demande', color: CalendarApp.EventColor.YELLOW, hex: '#f6c343' },
+    pending_payment: { titlePrefix: 'En attente de paiement', color: CalendarApp.EventColor.ORANGE, hex: '#ff9800' },
+    confirmed: { titlePrefix: 'Confirmée', color: CalendarApp.EventColor.GREEN, hex: '#43a047' },
+    refused: { titlePrefix: 'Refusée', color: CalendarApp.EventColor.RED, hex: '#e53935' },
+    cancelled: { titlePrefix: 'Annulée', color: CalendarApp.EventColor.GRAY, hex: '#757575' },
+  }
+
+  /**
+  * Crée (ou met à jour, si déjà existant) l'événement sur l'agenda Google de
+  * la ressource, avec un titre et une couleur reflétant le statut, puis
+  * notifie. Une erreur agenda (ressource sans calendar_id, agenda
+  * inaccessible, etc.) ne doit jamais bloquer le traitement de la
+  * réservation.
+  */
+  function upsertCalendarEventForReservation(reservation, status) {
+    var resourceRow = findRowById(RESOURCES_SHEET, 'resource_id', reservation.resource_id)
+    var calendarId = resourceRow ? resolveCalendarId(resourceRow.record.calendar_id) : ''
+    var resourceName = resourceRow ? resourceRow.record.name : reservation.resource_id
+    if (!calendarId) {
+      notifyReservationStatusChange(reservation, status, resourceName, '', '')
+      return ''
+    }
+    var style = CALENDAR_EVENT_STYLES[status]
+    var title = (style ? style.titlePrefix : status) + ' — ' + resourceName + ' — ' + (reservation.reference || reservation.reservation_id)
+    var eventId = ''
+    var eventLink = ''
+    try {
+      var calendar = CalendarApp.getCalendarById(calendarId)
+      var event = reservation.calendar_event_id ? calendar.getEventById(reservation.calendar_event_id) : null
+      if (event) {
+        event.setTitle(title)
+      } else {
+        event = calendar.createEvent(title, new Date(reservation.start_at), new Date(reservation.end_at))
+      }
+      if (style) {
+        event.setColor(style.color)
+      }
+      eventId = event.getId()
+      eventLink = getEventHtmlLink(calendarId, event)
+    } catch (e) {
+      // agenda inaccessible, pas bloquant
+    }
+    notifyReservationStatusChange(reservation, status, resourceName, calendarId, eventLink)
+    return eventId
+  }
+
+  function formatDateOnly(value) {
+    return Utilities.formatDate(new Date(value), Session.getScriptTimeZone(), 'dd/MM/yyyy')
+  }
+
+  function getEventHtmlLink(calendarId, event) {
+    try {
+      var apiEventId = event.getId().split('@')[0]
+      return Calendar.Events.get(calendarId, apiEventId).htmlLink
+    } catch (e) {
+      return ''
+    }
+  }
+
+  function getCalendarEditorEmails(calendarId) {
+    try {
+      var acl = Calendar.Acl.list(calendarId)
+      return (acl.items || [])
+        .filter(function (rule) {
+          return rule.scope && rule.scope.type === 'user' && rule.scope.value &&
+            rule.scope.value !== calendarId &&
+            (rule.role === 'writer' || rule.role === 'owner')
+        })
+        .map(function (rule) {
+          return rule.scope.value
+        })
+    } catch (e) {
+      return []
+    }
+  }
+
+  var MANAGER_SUBJECTS = {
+    pending_payment: function (resourceName, reference) { return 'Réservation approuvée — virement attendu — ' + resourceName + ' (' + reference + ')' },
+    confirmed: function (resourceName, reference) { return 'Virement reçu — réservation confirmée — ' + resourceName + ' (' + reference + ')' },
+    refused: function (resourceName, reference) { return 'Demande refusée — ' + resourceName + ' (' + reference + ')' },
+    cancelled: function (resourceName, reference) { return 'Réservation annulée — ' + resourceName + ' (' + reference + ')' },
+  }
+
+  var REQUESTER_SUBJECTS = {
+    pending_payment: function () { return 'Votre demande de réservation est approuvée — virement attendu' },
+    confirmed: function (resourceName) { return 'Votre réservation est confirmée — ' + resourceName },
+    refused: function () { return 'Votre demande de réservation a été refusée' },
+    cancelled: function () { return 'Votre réservation a été annulée' },
+  }
+
+  var REQUESTER_STATUS_LABELS = {
+    pending_payment: 'Votre réservation est approuvée, en attente de votre virement',
+    confirmed: 'Votre réservation est confirmée',
+    refused: 'Votre demande de réservation a été refusée',
+    cancelled: 'Votre réservation a été annulée',
+  }
+
+  function buildEmailHtml(hex, label, rows, eventLink) {
+    var htmlRows = rows.map(function (row) {
+      return '<tr><td style="padding:4px 12px 4px 0;color:#555;">' + row[0] + '</td><td style="padding:4px 0;font-weight:bold;">' + row[1] + '</td></tr>'
+    }).join('')
+    return '<div style="font-family:Arial,sans-serif;font-size:14px;color:#222;">' +
+      '<p><span style="display:inline-block;background:' + hex + ';color:#fff;padding:4px 12px;border-radius:4px;font-weight:bold;">' + label + '</span></p>' +
+      '<table>' + htmlRows + '</table>' +
+      (eventLink ? '<p style="margin-top:16px;"><a href="' + eventLink + '">Voir l\'événement dans Google Agenda</a></p>' : '') +
+      '</div>'
+  }
+
+  function buildEmailText(rows, eventLink) {
+    return rows.map(function (row) { return row[0] + ' : ' + row[1] }).join('\n') +
+      (eventLink ? '\n\nÉvénement agenda : ' + eventLink : '')
+  }
+
+  /**
+  * Mail destiné aux comptes éditeurs/propriétaires de l'agenda : contenu
+  * orienté suivi/gestion (identité du demandeur, montant, lien agenda).
+  */
+  function buildManagerNotification(reservation, status, resourceName, reference, dates, label, hex, eventLink) {
+    var subjectFn = MANAGER_SUBJECTS[status]
+    var subject = subjectFn ? subjectFn(resourceName, reference) : 'Prems — ' + resourceName + ' — ' + label + ' (' + reference + ')'
+
+    var rows = [
+      ['Statut', label],
+      ['Ressource', resourceName],
+      ['Référence', reference],
+      ['Dates', dates],
+    ]
+    if (reservation.requester_lot) {
+      rows.push(['Lot', reservation.requester_lot])
+    }
+    if (reservation.requester_email) {
+      rows.push(['Résident', reservation.requester_email])
+    }
+    if (reservation.amount_total) {
+      rows.push(['Montant total', reservation.amount_total + ' €'])
+    }
+
+    var appLink = buildReservationAppLink(reservation.reservation_id)
+    var textBody = buildEmailText(rows, eventLink) + (appLink ? '\n\nVoir la réservation dans Prems : ' + appLink : '')
+    var htmlBody = buildEmailHtml(hex, label, rows, eventLink)
+    if (appLink) {
+      htmlBody = htmlBody.replace('</div>', '<p style="margin-top:12px;"><a href="' + appLink + '">Voir la réservation dans Prems</a></p></div>')
+    }
+
+    return { subject: subject, textBody: textBody, htmlBody: htmlBody }
+  }
+
+  /**
+  * Lien vers la réservation dans l'espace gestionnaire (onglet Réservations,
+  * ligne surlignée via ?reservationId=). `APP_URL` (propriété de script) doit
+  * pointer vers la racine déployée de l'app, sous-chemin inclus
+  * (ex. https://xxx.github.io/reservations-residence). Absent = pas de lien.
+  */
+  function buildReservationAppLink(reservationId) {
+    var appUrl = PropertiesService.getScriptProperties().getProperty('APP_URL')
+    if (!appUrl) {
+      return ''
+    }
+    return appUrl.replace(/\/$/, '') + '/gestionnaire/reservations?reservationId=' + encodeURIComponent(reservationId)
+  }
+
+  /**
+  * Mail destiné au demandeur : contenu orienté résident (statut reformulé,
+  * prochaine étape), pas d'information interne (pas sa propre adresse).
+  */
+  function buildRequesterNotification(reservation, status, resourceName, reference, dates, label, hex, eventLink, reason) {
+    var subjectFn = REQUESTER_SUBJECTS[status]
+    var subject = subjectFn ? subjectFn(resourceName) : 'Prems — votre réservation — ' + label
+
+    var requesterLabel = REQUESTER_STATUS_LABELS[status] || label
+
+    var rows = [
+      ['Statut', requesterLabel],
+      ['Ressource', resourceName],
+      ['Dates', dates],
+      ['Référence', reference],
+    ]
+    if (reservation.amount_total) {
+      rows.push([status === 'confirmed' ? 'Montant payé' : 'Montant total', reservation.amount_total + ' €'])
+    }
+
+    var nextStep = ''
+    if (status === 'pending_payment') {
+      nextStep = reservation.hold_expires_at
+        ? 'Merci d\'effectuer le virement avant le ' + formatDateOnly(reservation.hold_expires_at) + ', sinon la réservation sera automatiquement annulée.'
+        : 'Merci d\'effectuer le virement sous ' + HOLD_HOURS + 'h, sinon la réservation sera automatiquement annulée.'
+    } else if (status === 'confirmed') {
+      nextStep = 'Votre réservation est confirmée, vous n\'avez rien d\'autre à faire.'
+    } else if ((status === 'refused' || status === 'cancelled') && reason) {
+      nextStep = 'Motif : ' + reason
+    }
+
+    var textBody = buildEmailText(rows, eventLink) + (nextStep ? '\n\n' + nextStep : '')
+    var htmlBody = buildEmailHtml(hex, requesterLabel, rows, eventLink)
+    if (nextStep) {
+      htmlBody = htmlBody.replace('</div>', '<p style="margin-top:12px;">' + nextStep + '</p></div>')
+    }
+
+    return { subject: subject, textBody: textBody, htmlBody: htmlBody }
+  }
+
+  /**
+  * Prévient par mail le demandeur et les comptes éditeurs/propriétaires de
+  * l'agenda de la ressource à chaque changement de statut d'une réservation,
+  * avec un contenu différent pour chacun (voir buildManagerNotification /
+  * buildRequesterNotification). `calendarId`/`eventLink`/`reason` optionnels
+  * (ex. ressource sans agenda, refus sans motif). Non bloquant : une erreur
+  * mail ne doit jamais faire échouer l'action.
+  */
+  function notifyReservationStatusChange(reservation, status, resourceName, calendarId, eventLink, reason) {
+    try {
+      var style = CALENDAR_EVENT_STYLES[status]
+      var label = style ? style.titlePrefix : status
+      var hex = style ? style.hex : '#607d8b'
+      var reference = reservation.reference || reservation.reservation_id
+      var dates = formatDateOnly(reservation.start_at) + ' → ' + formatDateOnly(reservation.end_at)
+
+      var editorEmails = (calendarId ? getCalendarEditorEmails(calendarId) : [])
+        .filter(function (email) { return email !== reservation.requester_email })
+
+      if (editorEmails.length) {
+        var managerMail = buildManagerNotification(reservation, status, resourceName, reference, dates, label, hex, eventLink)
+        editorEmails.forEach(function (email) {
+          try {
+            MailApp.sendEmail({ to: email, subject: managerMail.subject, body: managerMail.textBody, htmlBody: managerMail.htmlBody })
+          } catch (e) {
+            // adresse invalide ou quota, on continue les autres
+          }
+        })
+      }
+
+      if (reservation.requester_email) {
+        var requesterMail = buildRequesterNotification(reservation, status, resourceName, reference, dates, label, hex, eventLink, reason)
+        try {
+          MailApp.sendEmail({ to: reservation.requester_email, subject: requesterMail.subject, body: requesterMail.textBody, htmlBody: requesterMail.htmlBody })
+        } catch (e) {
+          // adresse invalide ou quota
+        }
+      }
+    } catch (e) {
+      // non bloquant
+    }
+  }
+
+  /**
+  * `calendar_id` peut être l'identifiant brut (xxx@group.calendar.google.com)
+  * ou une URL de partage Google Calendar : soit `?src=` (identifiant
+  * URL-encodé, lien "intégrer"), soit `?cid=` (identifiant encodé en base64,
+  * lien "partager"). On tolère les trois pour l'usage de l'agenda côté API.
+  */
+  function resolveCalendarId(rawValue) {
+    var value = String(rawValue || '').trim()
+    if (!value) {
+      return ''
+    }
+    if (!/^https?:\/\//i.test(value)) {
+      return value
+    }
+    var srcMatch = value.match(/[?&]src=([^&]+)/)
+    if (srcMatch) {
+      try {
+        return decodeURIComponent(srcMatch[1])
+      } catch (e) {
+        return ''
+      }
+    }
+    var cidMatch = value.match(/[?&]cid=([^&]+)/)
+    if (cidMatch) {
+      try {
+        return Utilities.newBlob(Utilities.base64Decode(cidMatch[1])).getDataAsString()
+      } catch (e) {
+        return ''
+      }
+    }
+    return ''
+  }
+
+  function getResourceInfo(resourceId) {
+    var resourceRow = findRowById(RESOURCES_SHEET, 'resource_id', resourceId)
+    return {
+      name: resourceRow ? resourceRow.record.name : resourceId,
+      calendarId: resourceRow ? resolveCalendarId(resourceRow.record.calendar_id) : '',
+    }
   }
 
   function handleRefuseRequest(body) {
@@ -124,6 +419,9 @@
 
     updateRow(RESERVATIONS_SHEET, found.rowNumber, { status: 'refused' })
     appendAuditLog(manager.email, 'request_refused', body.reservationId, body.reason || '')
+
+    var info = getResourceInfo(found.record.resource_id)
+    notifyReservationStatusChange(found.record, 'refused', info.name, info.calendarId, '', body.reason || '')
 
     return { ok: true }
   }
@@ -141,6 +439,7 @@
       throw new Error('Réservation introuvable ou paiement déjà constaté.')
     }
 
+    upsertCalendarEventForReservation(found.record, 'confirmed')
     updateRow(RESERVATIONS_SHEET, found.rowNumber, {
       status: 'confirmed',
       paid_at: new Date(),
@@ -157,10 +456,59 @@
       throw new Error('Réservation introuvable.')
     }
 
+    deleteCalendarEventForReservation(found.record)
     updateRow(RESERVATIONS_SHEET, found.rowNumber, { status: 'cancelled' })
     appendAuditLog(manager.email, 'reservation_cancelled', body.reservationId, body.reason || '')
 
+    var info = getResourceInfo(found.record.resource_id)
+    notifyReservationStatusChange(found.record, 'cancelled', info.name, info.calendarId, '', body.reason || '')
+
     return { ok: true }
+  }
+
+  function deleteCalendarEventForReservation(reservation) {
+    if (!reservation.calendar_event_id) {
+      return
+    }
+    var resourceRow = findRowById(RESOURCES_SHEET, 'resource_id', reservation.resource_id)
+    var calendarId = resourceRow ? resolveCalendarId(resourceRow.record.calendar_id) : ''
+    if (!calendarId) {
+      return
+    }
+    try {
+      CalendarApp.getCalendarById(calendarId).getEventById(reservation.calendar_event_id).deleteEvent()
+    } catch (e) {
+      // agenda déjà nettoyé ou inaccessible, pas bloquant
+    }
+  }
+
+  /**
+  * Bloque des dates sur une ressource (travaux, AG, ménage exceptionnel) :
+  * créé comme une réservation de statut "blocked", pour profiter des mêmes
+  * contrôles de conflit que les réservations résidents. Levée via adminCancel.
+  */
+  function handleBlockDates(body) {
+    var manager = requireManager(body)
+    var resourceId = String(body.resourceId || '').trim()
+    if (!resourceId) {
+      throw new Error('Ressource manquante.')
+    }
+    if (!body.startAt || !body.endAt || new Date(body.startAt) >= new Date(body.endAt)) {
+      throw new Error('Dates invalides.')
+    }
+
+    var reservationId = Utilities.getUuid()
+    appendRowByHeader(RESERVATIONS_SHEET, {
+      reservation_id: reservationId,
+      resource_id: resourceId,
+      start_at: new Date(body.startAt),
+      end_at: new Date(body.endAt),
+      status: 'blocked',
+      requester_contact: body.reason || '',
+    })
+    appendAuditLog(manager.email, 'dates_blocked', reservationId, body.reason || '')
+
+    return { ok: true, reservation_id: reservationId }
   }
 
   function handleListReservations(body) {

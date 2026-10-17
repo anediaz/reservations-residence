@@ -311,6 +311,11 @@
   background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
+.manager-row-highlighted {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-left: 3px solid var(--accent);
+}
+
 .manager-badge-self {
   display: inline-block;
   margin-left: 8px;
