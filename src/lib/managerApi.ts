@@ -1,6 +1,7 @@
 import { callApi } from './api'
 import type { Reservation, ReservationRequest, ReservationStatus } from '../types/reservation'
 import type { Resident } from '../types/resident'
+import type { ResourceConfig } from '../types/config'
 
 export function listRequests(idToken: string): Promise<ReservationRequest[]> {
   return callApi('listRequests', { idToken })
@@ -43,4 +44,16 @@ export function revokeResident(idToken: string, residentId: string): Promise<{ o
 
 export function deleteResident(idToken: string, residentId: string): Promise<{ ok: true }> {
   return callApi('deleteResident', { idToken, residentId })
+}
+
+export function listResources(idToken: string): Promise<ResourceConfig[]> {
+  return callApi('listResources', { idToken })
+}
+
+export function upsertResource(idToken: string, resource: ResourceConfig): Promise<{ ok: true; resource_id: string }> {
+  return callApi('upsertResource', { idToken, resource })
+}
+
+export function deleteResource(idToken: string, resourceId: string): Promise<{ ok: true }> {
+  return callApi('deleteResource', { idToken, resourceId })
 }
