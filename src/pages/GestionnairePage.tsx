@@ -3,9 +3,10 @@ import { useManagerAuth } from '../auth/useManagerAuth'
 import GoogleSignInButton from '../components/GoogleSignInButton'
 import RequestsPanel from './gestionnaire/RequestsPanel'
 import ReservationsPanel from './gestionnaire/ReservationsPanel'
+import ResidentsPanel from './gestionnaire/ResidentsPanel'
 import './GestionnairePage.css'
 
-type Tab = 'requests' | 'reservations'
+type Tab = 'requests' | 'reservations' | 'residents'
 
 function GestionnairePage() {
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
@@ -63,14 +64,19 @@ function GestionnairePage() {
         >
           Réservations
         </button>
+        <button
+          type="button"
+          className={tab === 'residents' ? 'manager-tab manager-tab-active' : 'manager-tab'}
+          onClick={() => setTab('residents')}
+        >
+          Résidents
+        </button>
       </nav>
 
       <section className="manager-content">
-        {tab === 'requests' ? (
-          <RequestsPanel idToken={manager.idToken} />
-        ) : (
-          <ReservationsPanel idToken={manager.idToken} />
-        )}
+        {tab === 'requests' && <RequestsPanel idToken={manager.idToken} />}
+        {tab === 'reservations' && <ReservationsPanel idToken={manager.idToken} />}
+        {tab === 'residents' && <ResidentsPanel idToken={manager.idToken} currentEmail={manager.email} />}
       </section>
     </main>
   )
