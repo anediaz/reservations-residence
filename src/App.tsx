@@ -69,7 +69,7 @@ function App() {
       <Route path="/" element={<Landing />} />
       <Route path="/resident" element={<ResidentPage />} />
       <Route
-        path="/gestionnaire"
+        path="/gestionnaire/:tab?"
         element={
           <ManagerAuthProvider>
             <GestionnairePage />

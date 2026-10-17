@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useManagerAuth } from '../auth/useManagerAuth'
 import GoogleSignInButton from '../components/GoogleSignInButton'
 import RequestsPanel from './gestionnaire/RequestsPanel'
@@ -6,12 +6,20 @@ import ReservationsPanel from './gestionnaire/ReservationsPanel'
 import ResidentsPanel from './gestionnaire/ResidentsPanel'
 import './GestionnairePage.css'
 
-type Tab = 'requests' | 'reservations' | 'residents'
+type Tab = 'demandes' | 'reservations' | 'residents'
+
+const TABS: Tab[] = ['demandes', 'reservations', 'residents']
 
 function GestionnairePage() {
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
   const { manager, status, error, signInWithGoogle, signOut } = useManagerAuth()
-  const [tab, setTab] = useState<Tab>('requests')
+  const { tab: tabParam } = useParams<{ tab: string }>()
+  const navigate = useNavigate()
+  const tab: Tab = TABS.includes(tabParam as Tab) ? (tabParam as Tab) : 'demandes'
+
+  function setTab(next: Tab) {
+    navigate(`/gestionnaire/${next}`)
+  }
 
   if (!clientId) {
     return (
@@ -52,8 +60,8 @@ function GestionnairePage() {
       <nav className="manager-tabs">
         <button
           type="button"
-          className={tab === 'requests' ? 'manager-tab manager-tab-active' : 'manager-tab'}
-          onClick={() => setTab('requests')}
+          className={tab === 'demandes' ? 'manager-tab manager-tab-active' : 'manager-tab'}
+          onClick={() => setTab('demandes')}
         >
           Demandes
         </button>
@@ -74,7 +82,7 @@ function GestionnairePage() {
       </nav>
 
       <section className="manager-content">
-        {tab === 'requests' && <RequestsPanel idToken={manager.idToken} />}
+        {tab === 'demandes' && <RequestsPanel idToken={manager.idToken} />}
         {tab === 'reservations' && <ReservationsPanel idToken={manager.idToken} />}
         {tab === 'residents' && <ResidentsPanel idToken={manager.idToken} currentEmail={manager.email} />}
       </section>
