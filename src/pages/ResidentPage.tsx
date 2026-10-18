@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react'
 import { getAvailability, listResourcesPublic, submitReservationRequest } from '../lib/residentApi'
 import { ApiError } from '../lib/api'
 import type { BlockedRange, PublicResource } from '../types/availability'
-import { formatDate } from '../lib/format'
+import AppHeader from '../components/AppHeader'
+import ResourcePicker from '../components/ResourcePicker'
+import DateRangeCalendar from '../components/DateRangeCalendar'
 import './ResidentPage.css'
 
 function datesOverlap(aStart: string, aEnd: string, b: BlockedRange): boolean {
@@ -10,13 +12,14 @@ function datesOverlap(aStart: string, aEnd: string, b: BlockedRange): boolean {
 }
 
 const BOOKING_UNIT_LABELS: Record<string, string> = {
-  nights: 'nuit(s)',
-  hours: 'heure(s)',
-  days: 'jour(s)',
+  nights: 'nuit',
+  hours: 'heure',
+  days: 'jour',
 }
 
-function bookingUnitLabel(unit: string): string {
-  return BOOKING_UNIT_LABELS[unit] || unit || 'unité(s)'
+function bookingUnitLabel(unit: string, count: number): string {
+  const label = BOOKING_UNIT_LABELS[unit] || unit || 'unité'
+  return count > 1 ? `${label}s` : label
 }
 
 function ResidentPage() {
@@ -28,6 +31,7 @@ function ResidentPage() {
   const [requesterEmail, setRequesterEmail] = useState('')
   const [requesterLot, setRequesterLot] = useState('')
   const [requesterContact, setRequesterContact] = useState('')
+  const [comment, setComment] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState<{ reservation_id: string; reference: string } | null>(null)
@@ -80,6 +84,7 @@ function ResidentPage() {
         requesterEmail,
         requesterLot,
         requesterContact,
+        comment,
       })
       setResult(res)
     } catch (err) {
@@ -91,99 +96,119 @@ function ResidentPage() {
 
   if (result) {
     return (
-      <main className="page resident-page">
-        <h1>Demande envoyée</h1>
-        <p>Référence : {result.reference}</p>
-        <p>Un mail de confirmation vient de vous être envoyé, avec un lien de suivi de votre demande.</p>
-      </main>
+      <>
+        <AppHeader />
+        <main className="page resident-page">
+          <h1>Demande envoyée</h1>
+          <p>Référence : {result.reference}</p>
+          <p>Un mail de confirmation vient de vous être envoyé.</p>
+        </main>
+      </>
     )
   }
 
   return (
-    <main className="page resident-page">
-      <h1>Espace résident</h1>
-      {error && <p className="resident-error">{error}</p>}
-
-      <ul className="resident-resource-list">
-        {resources.map((r) => (
-          <li key={r.resource_id}>
-            <button
-              type="button"
-              className={r.resource_id === resourceId ? 'cta' : 'cta cta-secondary'}
-              onClick={() => setResourceId(r.resource_id)}
-            >
-              {r.name}
-            </button>
-          </li>
-        ))}
-      </ul>
-
-      {resource && (
-        <div className="resident-resource-info">
-          <h2>{resource.name}</h2>
-          <p>Prix : {resource.price_per_unit} € / {bookingUnitLabel(resource.booking_unit)}</p>
-          <p>Ménage : {resource.cleaning_fee} €</p>
-          <p>Arrivée à partir de {resource.check_in_time}, départ avant {resource.check_out_time}</p>
-          <p>Durée maximale : {resource.max_units} {bookingUnitLabel(resource.booking_unit)}</p>
+    <>
+      <AppHeader />
+      <main className="page resident-page">
+        <div className="resident-intro">
+          <h1>Réserver une ressource</h1>
+          <p className="resident-subtitle">Choisissez une ressource, consultez les disponibilités puis envoyez votre demande.</p>
         </div>
-      )}
 
-      {resource?.calendar_id && (
-        <iframe
-          title={`Agenda ${resource.name}`}
-          src={`https://calendar.google.com/calendar/embed?src=${encodeURIComponent(resource.calendar_id)}&ctz=Europe%2FParis`}
-          style={{ border: 0 }}
-          width="100%"
-          height="500"
-        />
-      )}
+        {error && <p className="resident-error">{error}</p>}
 
-      {resource && (
-        <form className="resident-form" onSubmit={handleSubmit}>
-          {blocked.length > 0 && (
-            <div>
-              <p>Dates déjà prises :</p>
-              <ul>
-                {blocked.map((b, i) => (
-                  <li key={i}>{formatDate(b.start_at)} → {formatDate(b.end_at)}</li>
-                ))}
-              </ul>
-            </div>
-          )}
+        <ResourcePicker resources={resources} selectedId={resourceId} onSelect={setResourceId} />
 
-          <label>
-            Du
-            <input type="date" value={startAt} onChange={(e) => setStartAt(e.target.value)} required />
-          </label>
-          <label>
-            Au
-            <input type="date" value={endAt} onChange={(e) => setEndAt(e.target.value)} required />
-          </label>
-          {conflict && <p className="resident-error">Ces dates ne sont plus disponibles.</p>}
+        {resource && (
+          <section className="resident-section">
+            <h2 className="resident-section-title">{resource.name}</h2>
+            <dl className="resident-info-grid">
+              <div className="resident-info-item">
+                <dt>Prix</dt>
+                <dd>
+                  {resource.price_per_unit} € / {bookingUnitLabel(resource.booking_unit, 1)}
+                  <br />+ {resource.cleaning_fee} € ménage
+                </dd>
+              </div>
+              <div className="resident-info-item">
+                <dt>Arrivée</dt>
+                <dd>à partir de {resource.check_in_time}</dd>
+              </div>
+              <div className="resident-info-item">
+                <dt>Départ</dt>
+                <dd>avant {resource.check_out_time}</dd>
+              </div>
+              <div className="resident-info-item">
+                <dt>Durée maximale</dt>
+                <dd>{resource.max_units} {bookingUnitLabel(resource.booking_unit, resource.max_units)}</dd>
+              </div>
+            </dl>
+          </section>
+        )}
 
-          <label>
-            Email
-            <input type="email" value={requesterEmail} onChange={(e) => setRequesterEmail(e.target.value)} required />
-          </label>
-          <label>
-            Lot
-            <input type="text" value={requesterLot} onChange={(e) => setRequesterLot(e.target.value)} required />
-          </label>
-          <label>
-            Contact (téléphone)
-            <input type="text" value={requesterContact} onChange={(e) => setRequesterContact(e.target.value)} />
-          </label>
+        {resource && (
+          <section className="resident-booking-card">
+            <h2 className="resident-section-title">Faire une demande</h2>
 
-          {nights > 0 && (
-            <p>{nights} nuit(s) — {amountTotal} € (ménage inclus)</p>
-          )}
+            <form className="resident-form" onSubmit={handleSubmit}>
+              <DateRangeCalendar
+                startAt={startAt}
+                endAt={endAt}
+                onChange={(s, e) => {
+                  setStartAt(s)
+                  setEndAt(e)
+                }}
+                blocked={blocked}
+              />
+              {resource.calendar_id && (
+                <a
+                  href={`https://calendar.google.com/calendar/embed?src=${encodeURIComponent(resource.calendar_id)}&ctz=Europe%2FParis`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="resident-calendar-link"
+                >
+                  Voir l'agenda Google
+                </a>
+              )}
+              {conflict && <p className="resident-error">Ces dates ne sont plus disponibles.</p>}
 
-          <button type="submit" className="cta" disabled={submitting || !resourceId || conflict}>
-            Envoyer la demande
-          </button>
-        </form>
-      )}
-    </main>
+              <p className="resident-form-hint">* champ obligatoire</p>
+
+              <label>
+                Email *
+                <input type="email" value={requesterEmail} onChange={(e) => setRequesterEmail(e.target.value)} required />
+              </label>
+              <label>
+                Numéro de lot *
+                <input type="text" value={requesterLot} onChange={(e) => setRequesterLot(e.target.value)} required />
+              </label>
+              <label>
+                Contact téléphone (optionnel)
+                <input type="text" value={requesterContact} onChange={(e) => setRequesterContact(e.target.value)} />
+              </label>
+              <label>
+                Commentaire (optionnel)
+                <textarea
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  rows={3}
+                  placeholder="Précisions utiles pour le gestionnaire"
+                />
+              </label>
+
+              {nights > 0 && (
+                <p className="resident-price-preview">{nights} {bookingUnitLabel(resource.booking_unit, nights)} — {amountTotal} € (ménage inclus)</p>
+              )}
+
+              <button type="submit" className="cta" disabled={submitting || !resourceId || conflict}>
+                Envoyer la demande
+              </button>
+            </form>
+          </section>
+        )}
+      </main>
+    </>
   )
 }
 

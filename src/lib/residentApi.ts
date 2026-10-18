@@ -16,6 +16,7 @@ export interface SubmitReservationPayload {
   requesterEmail: string
   requesterLot: string
   requesterContact: string
+  comment?: string
 }
 
 export function submitReservationRequest(

@@ -1,0 +1,35 @@
+.resource-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.resource-picker-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 160px;
+  padding: 12px 16px;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  text-align: left;
+  cursor: pointer;
+}
+
+.resource-picker-card-selected {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.resource-picker-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.resource-picker-price {
+  font-size: 13px;
+  color: var(--text-muted, #6b7280);
+}

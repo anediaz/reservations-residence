@@ -265,13 +265,16 @@
       ['Dates', dates],
     ]
     if (reservation.requester_lot) {
-      rows.push(['Lot', reservation.requester_lot])
+      rows.push(['Numéro de lot', reservation.requester_lot])
     }
     if (reservation.requester_email) {
       rows.push(['Résident', reservation.requester_email])
     }
     if (reservation.amount_total) {
       rows.push(['Montant total', reservation.amount_total + ' €'])
+    }
+    if (reservation.comment) {
+      rows.push(['Commentaire', reservation.comment])
     }
 
     var appLink = buildReservationAppLink(reservation.reservation_id)
@@ -827,7 +830,7 @@
       throw new Error('Email manquant.')
     }
     if (!requesterLot) {
-      throw new Error('Lot manquant.')
+      throw new Error('Numéro de lot manquant.')
     }
     if (!body.startAt || !body.endAt || new Date(body.startAt) >= new Date(body.endAt)) {
       throw new Error('Dates invalides.')
@@ -857,6 +860,7 @@
       requester_email: requesterEmail,
       requester_lot: requesterLot,
       requester_contact: String(body.requesterContact || '').trim(),
+      comment: String(body.comment || '').trim(),
       start_at: candidate.start_at,
       end_at: candidate.end_at,
       status: 'requested',

@@ -1,6 +1,7 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import { useManagerAuth } from '../auth/useManagerAuth'
 import GoogleSignInButton from '../components/GoogleSignInButton'
+import AppHeader from '../components/AppHeader'
 import RequestsPanel from './gestionnaire/RequestsPanel'
 import ReservationsPanel from './gestionnaire/ReservationsPanel'
 import ResidentsPanel from './gestionnaire/ResidentsPanel'
@@ -24,30 +25,38 @@ function GestionnairePage() {
 
   if (!clientId) {
     return (
-      <main className="page manager-page">
-        <p className="manager-config-warning">
-          Connexion gestionnaire non configurée : <code>VITE_GOOGLE_CLIENT_ID</code> manquant.
-        </p>
-      </main>
+      <>
+        <AppHeader />
+        <main className="page manager-page">
+          <p className="manager-config-warning">
+            Connexion gestionnaire non configurée : <code>VITE_GOOGLE_CLIENT_ID</code> manquant.
+          </p>
+        </main>
+      </>
     )
   }
 
   if (!manager) {
     return (
-      <main className="page manager-page">
-        <div className="manager-shell">
-          <h1>Espace gestionnaire</h1>
-          <p>Connexion réservée aux comptes gestionnaires.</p>
-          <GoogleSignInButton clientId={clientId} onCredential={signInWithGoogle} />
-          {status === 'authenticating' && <p>Connexion en cours…</p>}
-          {status === 'error' && error && <p className="manager-error">{error}</p>}
-        </div>
-      </main>
+      <>
+        <AppHeader />
+        <main className="page manager-page">
+          <div className="manager-shell">
+            <h1>Espace gestionnaire</h1>
+            <p>Connexion réservée aux comptes gestionnaires.</p>
+            <GoogleSignInButton clientId={clientId} onCredential={signInWithGoogle} />
+            {status === 'authenticating' && <p>Connexion en cours…</p>}
+            {status === 'error' && error && <p className="manager-error">{error}</p>}
+          </div>
+        </main>
+      </>
     )
   }
 
   return (
-    <main className="manager-dashboard">
+    <>
+      <AppHeader />
+      <main className="manager-dashboard">
       <header className="manager-header">
         <h1>Espace gestionnaire</h1>
         <div className="manager-header-right">
@@ -95,7 +104,8 @@ function GestionnairePage() {
         {tab === 'residents' && <ResidentsPanel idToken={manager.idToken} currentEmail={manager.email} />}
         {tab === 'configuration' && <ConfigPanel idToken={manager.idToken} />}
       </section>
-    </main>
+      </main>
+    </>
   )
 }
 
