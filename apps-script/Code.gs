@@ -130,6 +130,11 @@
     confirmed: { titlePrefix: 'Confirmée', color: CalendarApp.EventColor.GREEN, hex: '#43a047' },
     refused: { titlePrefix: 'Refusée', color: CalendarApp.EventColor.RED, hex: '#e53935' },
     cancelled: { titlePrefix: 'Annulée', color: CalendarApp.EventColor.GRAY, hex: '#757575' },
+    blocked: { titlePrefix: 'Bloqué', color: CalendarApp.EventColor.BLUE, hex: '#1a73e8' },
+  }
+
+  function reservationDisplayRef(reservation) {
+    return reservation.reference || reservation.requester_contact || reservation.reservation_id
   }
 
   /**
@@ -148,7 +153,7 @@
       return ''
     }
     var style = CALENDAR_EVENT_STYLES[status]
-    var title = (style ? style.titlePrefix : status) + ' — ' + resourceName + ' — ' + (reservation.reference || reservation.reservation_id)
+    var title = (style ? style.titlePrefix : status) + ' — ' + resourceName + ' — ' + reservationDisplayRef(reservation)
     var eventId = ''
     var eventLink = ''
     try {
@@ -206,6 +211,7 @@
     confirmed: function (resourceName, reference) { return 'Virement reçu — réservation confirmée — ' + resourceName + ' (' + reference + ')' },
     refused: function (resourceName, reference) { return 'Demande refusée — ' + resourceName + ' (' + reference + ')' },
     cancelled: function (resourceName, reference) { return 'Réservation annulée — ' + resourceName + ' (' + reference + ')' },
+    blocked: function (resourceName) { return 'Dates bloquées — ' + resourceName },
   }
 
   var REQUESTER_SUBJECTS = {
@@ -339,7 +345,7 @@
       var style = CALENDAR_EVENT_STYLES[status]
       var label = style ? style.titlePrefix : status
       var hex = style ? style.hex : '#607d8b'
-      var reference = reservation.reference || reservation.reservation_id
+      var reference = reservationDisplayRef(reservation)
       var dates = formatDateOnly(reservation.start_at) + ' → ' + formatDateOnly(reservation.end_at)
 
       var editorEmails = (calendarId ? getCalendarEditorEmails(calendarId) : [])
@@ -498,14 +504,20 @@
     }
 
     var reservationId = Utilities.getUuid()
-    appendRowByHeader(RESERVATIONS_SHEET, {
+    var record = {
       reservation_id: reservationId,
       resource_id: resourceId,
       start_at: new Date(body.startAt),
       end_at: new Date(body.endAt),
       status: 'blocked',
       requester_contact: body.reason || '',
-    })
+    }
+    var eventId = upsertCalendarEventForReservation(record, 'blocked')
+    if (eventId) {
+      record.calendar_event_id = eventId
+    }
+
+    appendRowByHeader(RESERVATIONS_SHEET, record)
     appendAuditLog(manager.email, 'dates_blocked', reservationId, body.reason || '')
 
     return { ok: true, reservation_id: reservationId }
