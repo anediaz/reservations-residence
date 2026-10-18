@@ -27,6 +27,9 @@
     listResources: handleListResources,
     upsertResource: handleUpsertResource,
     deleteResource: handleDeleteResource,
+    listResourcesPublic: handleListResourcesPublic,
+    getAvailability: handleGetAvailability,
+    submitReservationRequest: handleSubmitReservationRequest,
   }
 
   function doPost(e) {
@@ -68,7 +71,7 @@
       return String(r.email || '').toLowerCase()
     })
     var blocking = all.filter(function (r) {
-      return r.status === 'pending_payment' || r.status === 'confirmed' || r.status === 'blocked'
+      return isBlockingStatus(r.status)
     })
 
     var requests = all.filter(function (r) {
@@ -88,7 +91,7 @@
         units: r.units,
         amount_total: r.amount_total,
         hasConflict: blocking.some(function (other) {
-          return other.resource_id === r.resource_id && datesOverlap(r, other)
+          return other.reservation_id !== r.reservation_id && other.resource_id === r.resource_id && datesOverlap(r, other)
         }),
         unknownAddress: residentEmails.indexOf(String(r.requester_email || '').toLowerCase()) === -1,
       }
@@ -207,6 +210,7 @@
   }
 
   var MANAGER_SUBJECTS = {
+    requested: function (resourceName, reference) { return 'Nouvelle demande de réservation — ' + resourceName + ' (' + reference + ')' },
     pending_payment: function (resourceName, reference) { return 'Réservation approuvée — virement attendu — ' + resourceName + ' (' + reference + ')' },
     confirmed: function (resourceName, reference) { return 'Virement reçu — réservation confirmée — ' + resourceName + ' (' + reference + ')' },
     refused: function (resourceName, reference) { return 'Demande refusée — ' + resourceName + ' (' + reference + ')' },
@@ -215,6 +219,7 @@
   }
 
   var REQUESTER_SUBJECTS = {
+    requested: function () { return 'Votre demande de réservation a été reçue' },
     pending_payment: function () { return 'Votre demande de réservation est approuvée — virement attendu' },
     confirmed: function (resourceName) { return 'Votre réservation est confirmée — ' + resourceName },
     refused: function () { return 'Votre demande de réservation a été refusée' },
@@ -222,6 +227,7 @@
   }
 
   var REQUESTER_STATUS_LABELS = {
+    requested: 'Votre demande a été reçue, en cours d\'examen',
     pending_payment: 'Votre réservation est approuvée, en attente de votre virement',
     confirmed: 'Votre réservation est confirmée',
     refused: 'Votre demande de réservation a été refusée',
@@ -313,7 +319,9 @@
     }
 
     var nextStep = ''
-    if (status === 'pending_payment') {
+    if (status === 'requested') {
+      nextStep = 'Votre demande a été transmise au gestionnaire, vous recevrez un mail dès qu\'elle sera traitée.'
+    } else if (status === 'pending_payment') {
       nextStep = reservation.hold_expires_at
         ? 'Merci d\'effectuer le virement avant le ' + formatDateOnly(reservation.hold_expires_at) + ', sinon la réservation sera automatiquement annulée.'
         : 'Merci d\'effectuer le virement sous ' + HOLD_HOURS + 'h, sinon la réservation sera automatiquement annulée.'
@@ -323,7 +331,8 @@
       nextStep = 'Motif : ' + reason
     }
 
-    var textBody = buildEmailText(rows, eventLink) + (nextStep ? '\n\n' + nextStep : '')
+    var textBody = buildEmailText(rows, eventLink) +
+      (nextStep ? '\n\n' + nextStep : '')
     var htmlBody = buildEmailHtml(hex, requesterLabel, rows, eventLink)
     if (nextStep) {
       htmlBody = htmlBody.replace('</div>', '<p style="margin-top:12px;">' + nextStep + '</p></div>')
@@ -742,6 +751,132 @@
     return { ok: true }
   }
 
+  // --- Front-office (public, sans authentification) -----------------------
+
+  /**
+  * Ressources réservables, version publique : pas de calendar_id/lock_id
+  * (détails internes), accessible sans idToken (webapp en accès anonyme).
+  */
+  function handleListResourcesPublic(body) {
+    return readSheetAsObjects(RESOURCES_SHEET).map(function (r) {
+      return {
+        resource_id: r.resource_id,
+        name: r.name,
+        booking_unit: r.booking_unit,
+        price_per_unit: r.price_per_unit,
+        cleaning_fee: r.cleaning_fee,
+        check_in_time: formatTimeValue(r.check_in_time),
+        check_out_time: formatTimeValue(r.check_out_time),
+        max_units: r.max_units,
+        calendar_id: resolveCalendarId(r.calendar_id),
+      }
+    })
+  }
+
+  /**
+  * Créneaux déjà pris pour une ressource (toute réservation à statut
+  * bloquant), pour affichage en lecture seule côté résident avant soumission.
+  */
+  function handleGetAvailability(body) {
+    var resourceId = String(body.resourceId || '').trim()
+    if (!resourceId) {
+      throw new Error('Ressource manquante.')
+    }
+    return readSheetAsObjects(RESERVATIONS_SHEET)
+      .filter(function (r) { return r.resource_id === resourceId && isBlockingStatus(r.status) })
+      .map(function (r) { return { start_at: r.start_at, end_at: r.end_at } })
+  }
+
+  function computePricing(resource, startAt, endAt) {
+    var msPerDay = 24 * 60 * 60 * 1000
+    var nights = Math.round((new Date(endAt) - new Date(startAt)) / msPerDay)
+    if (!isFinite(nights) || nights < 1) {
+      throw new Error('Dates invalides.')
+    }
+    var maxUnits = Number(resource.max_units)
+    if (isFinite(maxUnits) && maxUnits > 0 && nights > maxUnits) {
+      throw new Error('Durée maximale dépassée (' + maxUnits + ' nuits).')
+    }
+    var amountUnits = nights * Number(resource.price_per_unit || 0)
+    var amountCleaning = Number(resource.cleaning_fee || 0)
+    return {
+      units: nights,
+      amount_units: amountUnits,
+      amount_cleaning: amountCleaning,
+      amount_total: amountUnits + amountCleaning,
+    }
+  }
+
+  function buildReservationReference(reservationId, startAt) {
+    return Utilities.formatDate(new Date(startAt), Session.getScriptTimeZone(), 'yyMMdd') + '-' + reservationId.slice(0, 6).toUpperCase()
+  }
+
+  /**
+  * Soumission d'une demande par un résident, sans authentification. Le
+  * conflit de dates est revérifié ici (le frontend ne fait qu'une
+  * pré-validation) : rejet direct si chevauchement, premier arrivé.
+  */
+  function handleSubmitReservationRequest(body) {
+    var resourceId = String(body.resourceId || '').trim()
+    var requesterEmail = String(body.requesterEmail || '').trim().toLowerCase()
+    var requesterLot = String(body.requesterLot || '').trim()
+    if (!resourceId) {
+      throw new Error('Ressource manquante.')
+    }
+    if (!requesterEmail) {
+      throw new Error('Email manquant.')
+    }
+    if (!requesterLot) {
+      throw new Error('Lot manquant.')
+    }
+    if (!body.startAt || !body.endAt || new Date(body.startAt) >= new Date(body.endAt)) {
+      throw new Error('Dates invalides.')
+    }
+
+    var resourceRow = findRowById(RESOURCES_SHEET, 'resource_id', resourceId)
+    if (!resourceRow) {
+      throw new Error('Ressource introuvable.')
+    }
+
+    var candidate = { start_at: new Date(body.startAt), end_at: new Date(body.endAt) }
+    var hasConflict = readSheetAsObjects(RESERVATIONS_SHEET).some(function (r) {
+      return r.resource_id === resourceId && isBlockingStatus(r.status) && datesOverlap(candidate, r)
+    })
+    if (hasConflict) {
+      throw new Error('Ces dates ne sont plus disponibles pour cette ressource.')
+    }
+
+    var pricing = computePricing(resourceRow.record, body.startAt, body.endAt)
+    var reservationId = Utilities.getUuid()
+    var reference = buildReservationReference(reservationId, body.startAt)
+
+    var record = {
+      reservation_id: reservationId,
+      reference: reference,
+      resource_id: resourceId,
+      requester_email: requesterEmail,
+      requester_lot: requesterLot,
+      requester_contact: String(body.requesterContact || '').trim(),
+      start_at: candidate.start_at,
+      end_at: candidate.end_at,
+      status: 'requested',
+      units: pricing.units,
+      amount_units: pricing.amount_units,
+      amount_cleaning: pricing.amount_cleaning,
+      amount_total: pricing.amount_total,
+    }
+
+    var eventId = upsertCalendarEventForReservation(record, 'requested')
+    if (eventId) {
+      record.calendar_event_id = eventId
+    }
+
+    appendRowByHeader(RESERVATIONS_SHEET, record)
+    appendAuditLog(requesterEmail, 'request_submitted', reservationId, '')
+
+    return { ok: true, reservation_id: reservationId, reference: reference }
+  }
+
   // --- Authentification / autorisation ---------------------------------
 
   function requireManager(body) {
@@ -801,6 +936,10 @@
 
   function datesOverlap(a, b) {
     return new Date(a.start_at) < new Date(b.end_at) && new Date(b.start_at) < new Date(a.end_at)
+  }
+
+  function isBlockingStatus(status) {
+    return status === 'requested' || status === 'pending_payment' || status === 'confirmed' || status === 'blocked'
   }
 
   function appendAuditLog(actor, action, target, detail) {

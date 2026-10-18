@@ -46,4 +46,14 @@ Toutes les actions ci-dessous (sauf `authenticate`) exigent un `idToken` Google 
 - `upsertResource({ idToken, resource })` → crée (si `resource_id` nouveau) ou met à jour une ressource (`resource_id`, `name`, `calendar_id`, `price_per_unit`, `cleaning_fee`, `check_in_time`, `check_out_time`, `max_units`).
 - `deleteResource({ idToken, resourceId })` → supprime une ressource, refusé si des réservations la référencent.
 
-Chaque action mutante écrit dans `audit_log`. Les actions restantes du contrat (`blockDates`, `exportResidentData`, etc., voir `Implémentation technique.md`) restent à écrire au même endroit, dans `ACTIONS`.
+Chaque action mutante écrit dans `audit_log`.
+
+### Front-office (public, sans `idToken`)
+
+Webapp déployée en accès anonyme (`appsscript.json` : `access: ANYONE_ANONYMOUS`) — ces actions ne vérifient ni `idToken` ni rôle. Pas de compte résident, pas de suivi de statut par lien : le mail de confirmation contient uniquement le lien vers l'événement agenda (s'il existe).
+
+- `listResourcesPublic()` → ressources réservables, version allégée (sans `lock_id`), avec `calendar_id` résolu pour affichage en lecture seule (iframe `calendar.google.com/calendar/embed`, nécessite un agenda partagé publiquement).
+- `getAvailability({ resourceId })` → créneaux déjà pris (`requested`, `pending_payment`, `confirmed`, `blocked`) pour une ressource, en lecture seule.
+- `submitReservationRequest({ resourceId, startAt, endAt, requesterEmail, requesterLot, requesterContact })` → revalide le conflit de dates côté serveur (rejet direct si chevauchement, premier arrivé), calcule le prix, crée la ligne `status = requested`, événement agenda jaune "Demande", mails (gestionnaire : nouvelle demande ; demandeur : confirmation). Retourne `{ ok, reservation_id, reference }`.
+
+Les actions restantes du contrat (`exportResidentData`, etc., voir `Implémentation technique.md`) restent à écrire au même endroit, dans `ACTIONS`.
