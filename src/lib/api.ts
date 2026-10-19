@@ -5,6 +5,14 @@ export class ApiError extends Error {
   }
 }
 
+const SESSION_ERROR_PREFIX = 'AUTH_SESSION: '
+
+let sessionExpiredHandler: (() => void) | null = null
+
+export function setSessionExpiredHandler(handler: (() => void) | null): void {
+  sessionExpiredHandler = handler
+}
+
 export function getScriptUrl(): string | undefined {
   return import.meta.env.VITE_SCRIPT_URL || undefined
 }
@@ -32,6 +40,10 @@ export async function callApi<T>(action: string, payload: Record<string, unknown
 
   const data = await response.json()
   if (data?.error) {
+    if (typeof data.error === 'string' && data.error.startsWith(SESSION_ERROR_PREFIX)) {
+      sessionExpiredHandler?.()
+      throw new ApiError(data.error.slice(SESSION_ERROR_PREFIX.length))
+    }
     throw new ApiError(data.error)
   }
 

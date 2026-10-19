@@ -1,4 +1,5 @@
 import type { PublicResource } from '../types/availability'
+import Skeleton from './Skeleton'
 import './ResourcePicker.css'
 
 const BOOKING_UNIT_LABELS: Record<string, string> = {
@@ -15,9 +16,23 @@ interface ResourcePickerProps {
   resources: PublicResource[]
   selectedId: string
   onSelect: (resourceId: string) => void
+  loading?: boolean
 }
 
-function ResourcePicker({ resources, selectedId, onSelect }: ResourcePickerProps) {
+function ResourcePicker({ resources, selectedId, onSelect, loading }: ResourcePickerProps) {
+  if (loading) {
+    return (
+      <div className="resource-picker">
+        {[0, 1].map((i) => (
+          <div key={i} className="resource-picker-card resource-picker-card-skeleton">
+            <Skeleton width="100px" height="15px" />
+            <Skeleton width="70px" height="13px" />
+          </div>
+        ))}
+      </div>
+    )
+  }
+
   if (resources.length === 0) {
     return <p>Aucune ressource disponible.</p>
   }

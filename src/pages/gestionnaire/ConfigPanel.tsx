@@ -1,7 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { deleteResource, listResources, upsertResource } from '../../lib/managerApi'
 import { ApiError } from '../../lib/api'
+import { invalidate } from '../../lib/cache'
+import { useCachedQuery } from '../../lib/useCachedQuery'
 import type { ResourceConfig } from '../../types/config'
+import Skeleton from '../../components/Skeleton'
+import ReloadButton from '../../components/ReloadButton'
+import Spinner from '../../components/Spinner'
 
 interface ConfigPanelProps {
   idToken: string
@@ -56,7 +61,10 @@ function toResource(form: FormState): ResourceConfig {
 }
 
 function ConfigPanel({ idToken }: ConfigPanelProps) {
-  const [resources, setResources] = useState<ResourceConfig[] | null>(null)
+  const resourcesKey = `listResources:${idToken}`
+  const { data: resources, error: loadError, loading, reload } = useCachedQuery(resourcesKey, () =>
+    listResources(idToken)
+  )
   const [error, setError] = useState<string | null>(null)
   const [addForm, setAddForm] = useState<FormState>(EMPTY_FORM)
   const [submitting, setSubmitting] = useState(false)
@@ -64,27 +72,13 @@ function ConfigPanel({ idToken }: ConfigPanelProps) {
   const [editValues, setEditValues] = useState<FormState | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
 
-  function load() {
-    return listResources(idToken)
-      .then((data) => {
-        setResources(data)
-        setError(null)
-      })
-      .catch((err) => setError(err instanceof ApiError ? err.message : 'Erreur inattendue.'))
-  }
-
-  useEffect(() => {
-    void load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idToken])
-
   async function handleAdd(event: React.FormEvent) {
     event.preventDefault()
     setSubmitting(true)
     try {
       await upsertResource(idToken, toResource(addForm))
       setAddForm(EMPTY_FORM)
-      await load()
+      invalidate(resourcesKey)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Erreur inattendue.')
     } finally {
@@ -108,7 +102,7 @@ function ConfigPanel({ idToken }: ConfigPanelProps) {
     try {
       await upsertResource(idToken, toResource(editValues))
       cancelEdit()
-      await load()
+      invalidate(resourcesKey)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Erreur inattendue.')
     } finally {
@@ -121,7 +115,7 @@ function ConfigPanel({ idToken }: ConfigPanelProps) {
     setBusyId(resource.resource_id)
     try {
       await deleteResource(idToken, resource.resource_id)
-      await load()
+      invalidate(resourcesKey)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Erreur inattendue.')
     } finally {
@@ -131,10 +125,26 @@ function ConfigPanel({ idToken }: ConfigPanelProps) {
 
   return (
     <div>
-      {error && <p className="manager-error">{error}</p>}
+      {(error || loadError) && <p className="manager-error">{error ?? loadError}</p>}
+
+      <div className="manager-panel-header">
+        <span />
+        <ReloadButton onClick={reload} loading={loading} />
+      </div>
 
       {!resources ? (
-        <p>Chargement…</p>
+        <div className="resource-list">
+          {[0, 1].map((i) => (
+            <div className="resource-card" key={i}>
+              {[70, 90, 160, 60, 60, 50, 70, 70].map((w, j) => (
+                <div className="resource-field" key={j}>
+                  <Skeleton width="60px" height="11px" />
+                  <Skeleton width={`${w}px`} height="15px" />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
       ) : resources.length === 0 ? (
         <p>Aucune ressource.</p>
       ) : (
@@ -256,6 +266,7 @@ function ConfigPanel({ idToken }: ConfigPanelProps) {
                   {isEditing ? (
                     <>
                       <button type="button" className="cta" disabled={isBusy} onClick={saveEdit}>
+                        {isBusy && <Spinner />}
                         Enregistrer
                       </button>
                       <button type="button" className="cta cta-secondary" disabled={isBusy} onClick={cancelEdit}>
@@ -268,6 +279,7 @@ function ConfigPanel({ idToken }: ConfigPanelProps) {
                         Modifier
                       </button>
                       <button type="button" className="cta cta-danger" disabled={isBusy} onClick={() => handleDelete(r)}>
+                        {isBusy && <Spinner />}
                         Supprimer
                       </button>
                     </>
@@ -359,6 +371,7 @@ function ConfigPanel({ idToken }: ConfigPanelProps) {
           />
         </label>
         <button type="submit" className="cta" disabled={submitting}>
+          {submitting && <Spinner />}
           Ajouter
         </button>
       </form>

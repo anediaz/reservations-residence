@@ -1,8 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { deleteResident, listResidents, revokeResident, upsertResident } from '../../lib/managerApi'
 import { ApiError } from '../../lib/api'
+import { invalidate } from '../../lib/cache'
+import { useCachedQuery } from '../../lib/useCachedQuery'
 import type { Resident, ResidentRole, ResidentStatus } from '../../types/resident'
 import { formatDate } from '../../lib/format'
+import TableSkeleton from '../../components/TableSkeleton'
+import ReloadButton from '../../components/ReloadButton'
+import Spinner from '../../components/Spinner'
+
+const COLUMNS = ['Email', 'Lot', 'Rôle', 'Statut', 'Créé le', '']
 
 interface ResidentsPanelProps {
   idToken: string
@@ -22,7 +29,10 @@ const ROLE_LABELS: Record<ResidentRole, string> = {
 }
 
 function ResidentsPanel({ idToken, currentEmail }: ResidentsPanelProps) {
-  const [residents, setResidents] = useState<Resident[] | null>(null)
+  const residentsKey = `listResidents:${idToken}`
+  const { data: residents, error: loadError, loading, reload } = useCachedQuery(residentsKey, () =>
+    listResidents(idToken)
+  )
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [email, setEmail] = useState('')
@@ -32,20 +42,6 @@ function ResidentsPanel({ idToken, currentEmail }: ResidentsPanelProps) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValues, setEditValues] = useState<EditState | null>(null)
 
-  function load() {
-    return listResidents(idToken)
-      .then((data) => {
-        setResidents(data)
-        setError(null)
-      })
-      .catch((err) => setError(err instanceof ApiError ? err.message : 'Erreur inattendue.'))
-  }
-
-  useEffect(() => {
-    void load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idToken])
-
   async function handleAdd(event: React.FormEvent) {
     event.preventDefault()
     setSubmitting(true)
@@ -54,7 +50,7 @@ function ResidentsPanel({ idToken, currentEmail }: ResidentsPanelProps) {
       setEmail('')
       setLot('')
       setRole('resident')
-      await load()
+      invalidate(residentsKey)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Erreur inattendue.')
     } finally {
@@ -84,7 +80,7 @@ function ResidentsPanel({ idToken, currentEmail }: ResidentsPanelProps) {
         status: editValues.status,
       })
       cancelEdit()
-      await load()
+      invalidate(residentsKey)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Erreur inattendue.')
     } finally {
@@ -106,7 +102,7 @@ function ResidentsPanel({ idToken, currentEmail }: ResidentsPanelProps) {
           status: 'active',
         })
       }
-      await load()
+      invalidate(residentsKey)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Erreur inattendue.')
     } finally {
@@ -119,7 +115,7 @@ function ResidentsPanel({ idToken, currentEmail }: ResidentsPanelProps) {
     setBusyId(resident.resident_id)
     try {
       await deleteResident(idToken, resident.resident_id)
-      await load()
+      invalidate(residentsKey)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Erreur inattendue.')
     } finally {
@@ -127,47 +123,19 @@ function ResidentsPanel({ idToken, currentEmail }: ResidentsPanelProps) {
     }
   }
 
-  return (
-    <div>
-      <form className="manager-form" onSubmit={handleAdd}>
-        <input
-          type="email"
-          placeholder="email"
-          value={email}
-          onChange={(e) => {
-            setEmail(e.target.value)
-            e.target.setCustomValidity('')
-          }}
-          onInvalid={(e) => {
-            const input = e.currentTarget
-            input.setCustomValidity(
-              input.validity.valueMissing
-                ? 'Merci de renseigner un email.'
-                : 'Merci de renseigner un email valide.'
-            )
-          }}
-          required
-        />
-        <input
-          type="text"
-          placeholder="lot (ex: appartement 12)"
-          value={lot}
-          onChange={(e) => setLot(e.target.value)}
-        />
-        <select value={role} onChange={(e) => setRole(e.target.value as ResidentRole)}>
-          <option value="resident">Résident</option>
-          <option value="admin">Gestionnaire</option>
-          <option value="super_admin">Super gestionnaire</option>
-        </select>
-        <button type="submit" className="cta" disabled={submitting}>
-          Ajouter
-        </button>
-      </form>
+  const isReloading = loading && residents !== null
 
-      {error && <p className="manager-error">{error}</p>}
+  return (
+    <div className={isReloading ? 'manager-panel manager-panel-reloading' : 'manager-panel'}>
+      {(error || loadError) && <p className="manager-error">{error ?? loadError}</p>}
+
+      <div className="manager-panel-header">
+        <span />
+        <ReloadButton onClick={reload} loading={loading} />
+      </div>
 
       {!residents ? (
-        <p>Chargement…</p>
+        <TableSkeleton columns={COLUMNS} className="manager-table-residents" />
       ) : residents.length === 0 ? (
         <p>Aucun résident.</p>
       ) : (
@@ -189,7 +157,10 @@ function ResidentsPanel({ idToken, currentEmail }: ResidentsPanelProps) {
               const isSelf = r.email.toLowerCase() === currentEmail.toLowerCase()
               const isProtected = isSelf || r.role === 'super_admin'
               return (
-                <tr key={r.resident_id} className={isSelf ? 'manager-row-self' : undefined}>
+                <tr
+                  key={r.resident_id}
+                  className={[isSelf && 'manager-row-self', isBusy && 'manager-row-busy'].filter(Boolean).join(' ') || undefined}
+                >
                   <td>
                     {r.email}
                     {isSelf && <span className="manager-badge-self">moi</span>}
@@ -222,38 +193,40 @@ function ResidentsPanel({ idToken, currentEmail }: ResidentsPanelProps) {
                   </td>
                   <td>{r.status === 'active' ? 'Actif' : 'Inactif'}</td>
                   <td>{formatDate(r.created_at)}</td>
-                  <td className="manager-actions">
-                    {isEditing ? (
-                      <>
-                        <button type="button" className="cta" disabled={isBusy} onClick={() => saveEdit(r)}>
-                          Enregistrer
-                        </button>
-                        <button type="button" className="cta cta-secondary" disabled={isBusy} onClick={cancelEdit}>
-                          Annuler
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button type="button" className="cta cta-secondary" disabled={isBusy} onClick={() => startEdit(r)}>
-                          Modifier
-                        </button>
-                        {!isProtected && (
-                          <>
-                            <button
-                              type="button"
-                              className="cta cta-secondary"
-                              disabled={isBusy}
-                              onClick={() => handleToggleStatus(r)}
-                            >
-                              {r.status === 'active' ? 'Révoquer' : 'Réactiver'}
-                            </button>
-                            <button type="button" className="cta cta-danger" disabled={isBusy} onClick={() => handleDelete(r)}>
-                              Supprimer
-                            </button>
-                          </>
-                        )}
-                      </>
-                    )}
+                  <td>
+                    <div className="manager-actions">
+                      {isEditing ? (
+                        <>
+                          <button type="button" className="cta" disabled={isBusy} onClick={() => saveEdit(r)}>
+                            Enregistrer
+                          </button>
+                          <button type="button" className="cta cta-secondary" disabled={isBusy} onClick={cancelEdit}>
+                            Annuler
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button type="button" className="cta cta-secondary" disabled={isBusy} onClick={() => startEdit(r)}>
+                            Modifier
+                          </button>
+                          {!isProtected && (
+                            <>
+                              <button
+                                type="button"
+                                className="cta cta-secondary"
+                                disabled={isBusy}
+                                onClick={() => handleToggleStatus(r)}
+                              >
+                                {r.status === 'active' ? 'Révoquer' : 'Réactiver'}
+                              </button>
+                              <button type="button" className="cta cta-danger" disabled={isBusy} onClick={() => handleDelete(r)}>
+                                Supprimer
+                              </button>
+                            </>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               )
@@ -261,6 +234,46 @@ function ResidentsPanel({ idToken, currentEmail }: ResidentsPanelProps) {
           </tbody>
         </table>
       )}
+
+      <div className="manager-section-divider">
+        <h2 className="manager-history-title">Ajouter un résident</h2>
+
+        <form className="manager-form" onSubmit={handleAdd}>
+          <input
+            type="email"
+            placeholder="email"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value)
+              e.target.setCustomValidity('')
+            }}
+            onInvalid={(e) => {
+              const input = e.currentTarget
+              input.setCustomValidity(
+                input.validity.valueMissing
+                  ? 'Merci de renseigner un email.'
+                  : 'Merci de renseigner un email valide.'
+              )
+            }}
+            required
+          />
+          <input
+            type="text"
+            placeholder="lot (ex: appartement 12)"
+            value={lot}
+            onChange={(e) => setLot(e.target.value)}
+          />
+          <select value={role} onChange={(e) => setRole(e.target.value as ResidentRole)}>
+            <option value="resident">Résident</option>
+            <option value="admin">Gestionnaire</option>
+            <option value="super_admin">Super gestionnaire</option>
+          </select>
+          <button type="submit" className="cta" disabled={submitting}>
+            {submitting && <Spinner />}
+            Ajouter
+          </button>
+        </form>
+      </div>
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { ApiError, callApi } from '../lib/api'
+import { ApiError, callApi, setSessionExpiredHandler } from '../lib/api'
 import { ManagerAuthContext, type ManagerSession } from './managerAuthStore'
 
 interface AuthenticateResponse {
@@ -45,6 +45,11 @@ export function ManagerAuthProvider({ children }: { children: ReactNode }) {
     setStatus('idle')
     setError(null)
   }
+
+  useEffect(() => {
+    setSessionExpiredHandler(signOut)
+    return () => setSessionExpiredHandler(null)
+  }, [])
 
   return (
     <ManagerAuthContext.Provider value={{ manager, status, error, signInWithGoogle, signOut }}>

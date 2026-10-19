@@ -26,6 +26,15 @@
   color: #d92d20;
 }
 
+.resident-notice {
+  margin: 16px 0 0;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: #ecfdf3;
+  color: #067647;
+  font-weight: 500;
+}
+
 .resident-section {
   margin-top: 28px;
   padding-top: 20px;
@@ -95,10 +104,31 @@
   margin: 0 auto;
 }
 
-.resident-form .date-range-calendar {
+.resident-calendar-wrapper {
+  position: relative;
   align-self: center;
   width: 100%;
-  box-sizing: border-box;
+}
+
+.resident-calendar-wrapper .date-range-calendar {
+  transition: opacity 0.15s;
+}
+
+.resident-calendar-wrapper-loading .date-range-calendar {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.resident-calendar-loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted, #6b7280);
 }
 
 .resident-form label {

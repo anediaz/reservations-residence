@@ -23,6 +23,10 @@
   background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
+.resource-picker-card-skeleton {
+  cursor: default;
+}
+
 .resource-picker-name {
   font-size: 15px;
   font-weight: 600;

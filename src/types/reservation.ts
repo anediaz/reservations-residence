@@ -21,6 +21,7 @@ export interface ReservationRequest {
   amount_total: number
   hasConflict: boolean
   unknownAddress: boolean
+  lotMismatch: boolean
 }
 
 export interface Reservation {

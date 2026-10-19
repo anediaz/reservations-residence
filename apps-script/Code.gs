@@ -67,8 +67,9 @@
     requireManager(body)
 
     var all = readSheetAsObjects(RESERVATIONS_SHEET)
-    var residentEmails = readSheetAsObjects(RESIDENTS_SHEET).map(function (r) {
-      return String(r.email || '').toLowerCase()
+    var residentsByEmail = {}
+    readSheetAsObjects(RESIDENTS_SHEET).forEach(function (r) {
+      residentsByEmail[String(r.email || '').toLowerCase()] = r
     })
     var blocking = all.filter(function (r) {
       return isBlockingStatus(r.status)
@@ -79,6 +80,7 @@
     })
 
     return requests.map(function (r) {
+      var resident = residentsByEmail[String(r.requester_email || '').toLowerCase()]
       return {
         reservation_id: r.reservation_id,
         reference: r.reference,
@@ -93,7 +95,8 @@
         hasConflict: blocking.some(function (other) {
           return other.reservation_id !== r.reservation_id && other.resource_id === r.resource_id && datesOverlap(r, other)
         }),
-        unknownAddress: residentEmails.indexOf(String(r.requester_email || '').toLowerCase()) === -1,
+        unknownAddress: !resident,
+        lotMismatch: !!resident && String(resident.lot || '').trim() !== '' && String(resident.lot || '').trim() !== String(r.requester_lot || '').trim(),
       }
     })
   }
@@ -265,7 +268,7 @@
       ['Dates', dates],
     ]
     if (reservation.requester_lot) {
-      rows.push(['Numéro de lot', reservation.requester_lot])
+      rows.push(["Numéro d'appartement", reservation.requester_lot])
     }
     if (reservation.requester_email) {
       rows.push(['Résident', reservation.requester_email])
@@ -830,7 +833,7 @@
       throw new Error('Email manquant.')
     }
     if (!requesterLot) {
-      throw new Error('Numéro de lot manquant.')
+      throw new Error("Numéro d'appartement manquant.")
     }
     if (!body.startAt || !body.endAt || new Date(body.startAt) >= new Date(body.endAt)) {
       throw new Error('Dates invalides.')
@@ -852,11 +855,13 @@
     var pricing = computePricing(resourceRow.record, body.startAt, body.endAt)
     var reservationId = Utilities.getUuid()
     var reference = buildReservationReference(reservationId, body.startAt)
+    var resident = findResidentByEmail(requesterEmail)
 
     var record = {
       reservation_id: reservationId,
       reference: reference,
       resource_id: resourceId,
+      resident_id: resident ? resident.resident_id : '',
       requester_email: requesterEmail,
       requester_lot: requesterLot,
       requester_contact: String(body.requesterContact || '').trim(),
@@ -883,25 +888,34 @@
 
   // --- Authentification / autorisation ---------------------------------
 
+  /**
+  * Préfixe AUTH_SESSION: les erreurs sont reconnues côté frontend pour
+  * déconnecter automatiquement le gestionnaire (jeton expiré/invalide,
+  * compte révoqué...), sans dépendre du texte exact du message.
+  */
   function requireManager(body) {
-    var idToken = body.idToken
-    if (!idToken) {
-      throw new Error('idToken manquant.')
-    }
+    try {
+      var idToken = body.idToken
+      if (!idToken) {
+        throw new Error('idToken manquant.')
+      }
 
-    var payload = verifyGoogleIdToken(idToken)
-    var email = String(payload.email || '').toLowerCase()
-    if (!payload.email_verified || !email) {
-      throw new Error('Email Google non vérifié.')
-    }
+      var payload = verifyGoogleIdToken(idToken)
+      var email = String(payload.email || '').toLowerCase()
+      if (!payload.email_verified || !email) {
+        throw new Error('Email Google non vérifié.')
+      }
 
-    var resident = findResidentByEmail(email)
-    var hasManagerRole = resident && (resident.role === 'admin' || resident.role === 'super_admin')
-    if (!resident || !hasManagerRole || resident.status !== 'active') {
-      throw new Error('Ce compte n\'a pas les droits gestionnaire.')
-    }
+      var resident = findResidentByEmail(email)
+      var hasManagerRole = resident && (resident.role === 'admin' || resident.role === 'super_admin')
+      if (!resident || !hasManagerRole || resident.status !== 'active') {
+        throw new Error('Ce compte n\'a pas les droits gestionnaire.')
+      }
 
-    return { email: email, name: payload.name || email }
+      return { email: email, name: payload.name || email }
+    } catch (err) {
+      throw new Error('AUTH_SESSION: ' + err.message)
+    }
   }
 
   function verifyGoogleIdToken(idToken) {
@@ -915,7 +929,7 @@
       { muteHttpExceptions: true }
     )
     if (response.getResponseCode() !== 200) {
-      throw new Error('Jeton Google invalide ou expiré.')
+      throw new Error('La connexion a échoué, merci de réessayer.')
     }
 
     var payload = JSON.parse(response.getContentText())
