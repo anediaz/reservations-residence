@@ -51,11 +51,14 @@
   background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
-.date-range-day-disabled {
+.date-range-day-unavailable {
   color: var(--text-muted, #6b7280);
   text-decoration: line-through;
-  cursor: not-allowed;
   background: #fee4e2;
+}
+
+.date-range-day-disabled {
+  cursor: not-allowed;
 }
 
 .date-range-day-in-range {
@@ -94,4 +97,11 @@
 .date-range-legend-swatch-selected {
   background: var(--accent);
   margin-left: 10px;
+}
+
+.date-range-calendar-hint {
+  margin: 6px 0 0;
+  font-size: 11px;
+  text-align: center;
+  color: var(--text-muted, #6b7280);
 }

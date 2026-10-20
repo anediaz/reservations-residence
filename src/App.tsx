@@ -1,10 +1,27 @@
-import { Routes, Route, Link } from 'react-router-dom'
+import { useEffect, type ReactNode } from 'react'
+import { Routes, Route, Link, Navigate, useNavigate } from 'react-router-dom'
 import './App.css'
 import ResidentPage from './pages/ResidentPage'
 import GestionnairePage from './pages/GestionnairePage'
+import ManagerLoginModal from './components/ManagerLoginModal'
 import { ManagerAuthProvider } from './auth/ManagerAuthContext'
+import { useManagerAuth } from './auth/useManagerAuth'
+import { ManagerLoginModalProvider } from './auth/ManagerLoginModalContext'
+import { useManagerLoginModal } from './auth/useManagerLoginModal'
 
 function Landing() {
+  const { manager } = useManagerAuth()
+  const { open } = useManagerLoginModal()
+  const navigate = useNavigate()
+
+  function handleManagerClick() {
+    if (manager) {
+      navigate('/gestionnaire')
+      return
+    }
+    open()
+  }
+
   return (
     <main className="landing">
       <div className="landing-content">
@@ -50,9 +67,9 @@ function Landing() {
           <Link to="/resident" className="cta">
             Je suis résident
           </Link>
-          <Link to="/gestionnaire" className="cta cta-secondary">
+          <button type="button" className="cta cta-secondary" onClick={handleManagerClick}>
             Je suis gestionnaire
-          </Link>
+          </button>
         </div>
       </div>
 
@@ -63,20 +80,39 @@ function Landing() {
   )
 }
 
+function RequireManager({ children }: { children: ReactNode }) {
+  const { manager } = useManagerAuth()
+  const { open } = useManagerLoginModal()
+
+  useEffect(() => {
+    if (!manager) open()
+  }, [manager, open])
+
+  if (!manager) {
+    return <Navigate to="/" replace />
+  }
+  return <>{children}</>
+}
+
 function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Landing />} />
-      <Route path="/resident" element={<ResidentPage />} />
-      <Route
-        path="/gestionnaire/:tab?"
-        element={
-          <ManagerAuthProvider>
-            <GestionnairePage />
-          </ManagerAuthProvider>
-        }
-      />
-    </Routes>
+    <ManagerAuthProvider>
+      <ManagerLoginModalProvider>
+        <Routes>
+          <Route path="/" element={<Landing />} />
+          <Route path="/resident" element={<ResidentPage />} />
+          <Route
+            path="/gestionnaire/:tab?"
+            element={
+              <RequireManager>
+                <GestionnairePage />
+              </RequireManager>
+            }
+          />
+        </Routes>
+        <ManagerLoginModal />
+      </ManagerLoginModalProvider>
+    </ManagerAuthProvider>
   )
 }
 

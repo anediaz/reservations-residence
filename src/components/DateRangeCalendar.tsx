@@ -35,13 +35,23 @@ function startOfDay(date: Date): Date {
   return copy
 }
 
+function isoDatePart(value: string): string {
+  return value.slice(0, 10)
+}
+
 function isBlockedDay(iso: string, blocked: BlockedRange[]): boolean {
-  const day = parseISODate(iso)
-  if (!day) return false
   return blocked.some((b) => {
-    const rangeStart = startOfDay(new Date(b.start_at))
-    const rangeEnd = startOfDay(new Date(b.end_at))
-    return day >= rangeStart && day < rangeEnd
+    const rangeStart = isoDatePart(b.start_at)
+    const rangeEnd = isoDatePart(b.end_at)
+    return iso >= rangeStart && iso < rangeEnd
+  })
+}
+
+function hasBlockedNightInRange(startIso: string, endIso: string, blocked: BlockedRange[]): boolean {
+  return blocked.some((b) => {
+    const rangeStart = isoDatePart(b.start_at)
+    const rangeEnd = isoDatePart(b.end_at)
+    return startIso < rangeEnd && rangeStart < endIso
   })
 }
 
@@ -63,6 +73,10 @@ function DateRangeCalendar({ startAt, endAt, onChange, blocked }: DateRangeCalen
   for (let day = 1; day <= daysInMonth; day++) cells.push({ iso: toISO(year, month, day), day })
 
   function handleDayClick(iso: string) {
+    if (iso === startAt || iso === endAt) {
+      onChange('', '')
+      return
+    }
     if (!startAt || endAt) {
       onChange(iso, '')
       return
@@ -102,12 +116,17 @@ function DateRangeCalendar({ startAt, endAt, onChange, blocked }: DateRangeCalen
           const cellDate = parseISODate(cell.iso)!
           const isPast = cellDate < today
           const isUnavailable = isBlockedDay(cell.iso, blocked)
-          const disabled = isPast || isUnavailable
           const isStart = cell.iso === startAt
           const isEnd = cell.iso === endAt
+          const pickingEnd = Boolean(startAt) && !endAt && cell.iso > startAt
+          const disabled =
+            !isStart &&
+            !isEnd &&
+            (isPast || (pickingEnd ? hasBlockedNightInRange(startAt, cell.iso, blocked) : isUnavailable))
           const inRange = startAt && endAt && cell.iso > startAt && cell.iso < endAt
 
           const classNames = ['date-range-day']
+          if (isUnavailable) classNames.push('date-range-day-unavailable')
           if (disabled) classNames.push('date-range-day-disabled')
           if (isStart || isEnd) classNames.push('date-range-day-selected')
           if (inRange) classNames.push('date-range-day-in-range')
@@ -129,6 +148,9 @@ function DateRangeCalendar({ startAt, endAt, onChange, blocked }: DateRangeCalen
       <p className="date-range-calendar-legend">
         <span className="date-range-legend-swatch date-range-legend-swatch-unavailable" /> indisponible
         <span className="date-range-legend-swatch date-range-legend-swatch-selected" /> sélectionné
+      </p>
+      <p className="date-range-calendar-hint">
+        Le jour de départ d'une réservation reste disponible comme jour d'arrivée pour une autre.
       </p>
     </div>
   )

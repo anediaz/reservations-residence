@@ -1,4 +1,6 @@
 import { NavLink } from 'react-router-dom'
+import { useManagerAuth } from '../auth/useManagerAuth'
+import { useManagerLoginModal } from '../auth/useManagerLoginModal'
 import './AppHeader.css'
 
 function navLinkClass({ isActive }: { isActive: boolean }): string {
@@ -6,6 +8,15 @@ function navLinkClass({ isActive }: { isActive: boolean }): string {
 }
 
 function AppHeader() {
+  const { manager } = useManagerAuth()
+  const { open } = useManagerLoginModal()
+
+  function handleManagerClick(e: React.MouseEvent) {
+    if (manager) return
+    e.preventDefault()
+    open()
+  }
+
   return (
     <header className="app-header">
       <NavLink to="/" end className="app-header-logo">
@@ -15,7 +26,7 @@ function AppHeader() {
         <NavLink to="/resident" className={navLinkClass}>
           Espace résident
         </NavLink>
-        <NavLink to="/gestionnaire" className={navLinkClass}>
+        <NavLink to="/gestionnaire" className={navLinkClass} onClick={handleManagerClick}>
           Espace gestionnaire
         </NavLink>
       </nav>
