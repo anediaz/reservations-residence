@@ -213,6 +213,7 @@ function ReservationsPanel({ idToken }: ReservationsPanelProps) {
             <h2 className="manager-pending-title">Demandes en attente ({requests.length})</h2>
             <ReloadButton onClick={reloadRequests} loading={requestsLoading} />
           </div>
+          <div className="manager-table-scroll">
           <table className="manager-table manager-table-requests">
             <thead>
               <tr>
@@ -264,6 +265,7 @@ function ReservationsPanel({ idToken }: ReservationsPanelProps) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       ) : null}
 
@@ -277,6 +279,7 @@ function ReservationsPanel({ idToken }: ReservationsPanelProps) {
       ) : upcoming.length === 0 ? (
         <p>Aucune réservation à venir.</p>
       ) : (
+        <div className="manager-table-scroll">
         <table className="manager-table manager-table-reservations">
           <thead>
             <tr>
@@ -290,6 +293,7 @@ function ReservationsPanel({ idToken }: ReservationsPanelProps) {
           </thead>
           <tbody>{upcoming.map(renderReservationRow)}</tbody>
         </table>
+        </div>
       )}
 
       <div className="manager-panel-header manager-section-divider">
@@ -301,6 +305,7 @@ function ReservationsPanel({ idToken }: ReservationsPanelProps) {
       ) : past.length === 0 ? (
         <p>Aucune réservation passée.</p>
       ) : (
+        <div className="manager-table-scroll">
         <table className="manager-table manager-table-reservations">
           <thead>
             <tr>
@@ -314,6 +319,7 @@ function ReservationsPanel({ idToken }: ReservationsPanelProps) {
           </thead>
           <tbody>{past.map(renderReservationRow)}</tbody>
         </table>
+        </div>
       )}
 
       <form className="manager-config-form" onSubmit={handleBlockDates}>

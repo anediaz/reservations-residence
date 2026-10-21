@@ -169,6 +169,14 @@
   display: flex;
   align-items: center;
   gap: 16px;
+  min-width: 0;
+}
+
+.manager-header-right p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .icon-button {
@@ -231,9 +239,12 @@
   gap: 8px;
   border-bottom: 1px solid var(--border);
   margin-bottom: 24px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .manager-tab {
+  flex: 0 0 auto;
   padding: 10px 20px;
   background: none;
   border: none;
@@ -241,6 +252,7 @@
   font-size: 15px;
   font-weight: 500;
   color: var(--text);
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -296,8 +308,15 @@
   border-top: 1px solid var(--border);
 }
 
+.manager-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .manager-table {
   width: 100%;
+  min-width: 640px;
   table-layout: fixed;
   border-collapse: collapse;
   text-align: left;
@@ -547,4 +566,36 @@
 
 .manager-table-residents .manager-actions .cta {
   padding: 4px 8px;
+}
+
+@media (max-width: 640px) {
+  .manager-dashboard {
+    padding: 16px;
+  }
+
+  .manager-header {
+    gap: 8px;
+  }
+
+  .manager-header h1 {
+    font-size: 24px;
+  }
+
+  .manager-header-right p {
+    max-width: 160px;
+  }
+
+  .manager-pending-block {
+    padding: 12px;
+  }
+
+  .manager-tab {
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+
+  .manager-tabs {
+    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+  }
 }

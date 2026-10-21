@@ -33,3 +33,15 @@
   background: var(--accent);
   color: #fff;
 }
+
+@media (max-width: 480px) {
+  .app-header {
+    padding: 12px 16px;
+    gap: 8px;
+  }
+
+  .app-header-link {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+}

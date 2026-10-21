@@ -139,6 +139,7 @@ function ResidentsPanel({ idToken, currentEmail }: ResidentsPanelProps) {
       ) : residents.length === 0 ? (
         <p>Aucun résident.</p>
       ) : (
+        <div className="manager-table-scroll">
         <table className="manager-table manager-table-residents">
           <thead>
             <tr>
@@ -233,6 +234,7 @@ function ResidentsPanel({ idToken, currentEmail }: ResidentsPanelProps) {
             })}
           </tbody>
         </table>
+        </div>
       )}
 
       <div className="manager-section-divider">
