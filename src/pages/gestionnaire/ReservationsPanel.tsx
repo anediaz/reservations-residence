@@ -155,7 +155,53 @@ function ReservationsPanel({ idToken }: ReservationsPanelProps) {
   }
 
   const history = reservations?.filter((r) => r.status !== 'requested') ?? null
+  const todayIso = new Date().toISOString().slice(0, 10)
+  const isUpcoming = (endAt: string) => endAt.slice(0, 10) >= todayIso
+  const upcoming = history?.filter((r) => isUpcoming(r.end_at)) ?? null
+  const past = history?.filter((r) => !isUpcoming(r.end_at)) ?? null
   const loadError = requestsError || reservationsError
+
+  function renderReservationRow(r: NonNullable<typeof reservations>[number]) {
+    return (
+      <tr
+        key={r.reservation_id}
+        ref={r.reservation_id === highlightedId ? highlightedRowRef : null}
+        className={r.reservation_id === highlightedId ? 'manager-row-highlighted' : undefined}
+      >
+        <td>{r.reference}</td>
+        <td>{formatDate(r.start_at)} → {formatDate(r.end_at)}</td>
+        <td>{r.status === 'blocked' ? r.requester_contact : r.requester_email}</td>
+        <td>{STATUS_LABELS[r.status] ?? r.status}</td>
+        <td>{r.status === 'blocked' ? '—' : `${r.amount_total} €`}</td>
+        <td>
+          <div className="manager-actions">
+            {r.status === 'pending_payment' && (
+              <button
+                type="button"
+                className="cta"
+                disabled={busyId === r.reservation_id}
+                onClick={() => handleConfirmPayment(r.reservation_id)}
+              >
+                {busyId === r.reservation_id && <Spinner />}
+                Virement reçu
+              </button>
+            )}
+            {(r.status === 'pending_payment' || r.status === 'confirmed' || r.status === 'blocked') && (
+              <button
+                type="button"
+                className="cta cta-secondary"
+                disabled={busyId === r.reservation_id}
+                onClick={() => handleCancel(r.reservation_id)}
+              >
+                {busyId === r.reservation_id && <Spinner />}
+                Annuler
+              </button>
+            )}
+          </div>
+        </td>
+      </tr>
+    )
+  }
 
   return (
     <div>
@@ -222,14 +268,14 @@ function ReservationsPanel({ idToken }: ReservationsPanelProps) {
       ) : null}
 
       <div className="manager-panel-header">
-        <h2 className="manager-history-title">Historique des réservations</h2>
+        <h2 className="manager-history-title">Réservations à venir</h2>
         <ReloadButton onClick={reloadReservations} loading={reservationsLoading} />
       </div>
 
-      {history === null ? (
+      {upcoming === null ? (
         <TableSkeleton columns={RESERVATION_COLUMNS} className="manager-table-reservations" />
-      ) : history.length === 0 ? (
-        <p>Aucune réservation.</p>
+      ) : upcoming.length === 0 ? (
+        <p>Aucune réservation à venir.</p>
       ) : (
         <table className="manager-table manager-table-reservations">
           <thead>
@@ -242,47 +288,31 @@ function ReservationsPanel({ idToken }: ReservationsPanelProps) {
               <th></th>
             </tr>
           </thead>
-          <tbody>
-            {history.map((r) => (
-              <tr
-                key={r.reservation_id}
-                ref={r.reservation_id === highlightedId ? highlightedRowRef : null}
-                className={r.reservation_id === highlightedId ? 'manager-row-highlighted' : undefined}
-              >
-                <td>{r.reference}</td>
-                <td>{formatDate(r.start_at)} → {formatDate(r.end_at)}</td>
-                <td>{r.status === 'blocked' ? r.requester_contact : r.requester_email}</td>
-                <td>{STATUS_LABELS[r.status] ?? r.status}</td>
-                <td>{r.status === 'blocked' ? '—' : `${r.amount_total} €`}</td>
-                <td>
-                  <div className="manager-actions">
-                    {r.status === 'pending_payment' && (
-                      <button
-                        type="button"
-                        className="cta"
-                        disabled={busyId === r.reservation_id}
-                        onClick={() => handleConfirmPayment(r.reservation_id)}
-                      >
-                        {busyId === r.reservation_id && <Spinner />}
-                        Virement reçu
-                      </button>
-                    )}
-                    {(r.status === 'pending_payment' || r.status === 'confirmed' || r.status === 'blocked') && (
-                      <button
-                        type="button"
-                        className="cta cta-secondary"
-                        disabled={busyId === r.reservation_id}
-                        onClick={() => handleCancel(r.reservation_id)}
-                      >
-                        {busyId === r.reservation_id && <Spinner />}
-                        Annuler
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
+          <tbody>{upcoming.map(renderReservationRow)}</tbody>
+        </table>
+      )}
+
+      <div className="manager-panel-header manager-section-divider">
+        <h2 className="manager-history-title">Historique des réservations</h2>
+      </div>
+
+      {past === null ? (
+        <TableSkeleton columns={RESERVATION_COLUMNS} className="manager-table-reservations" />
+      ) : past.length === 0 ? (
+        <p>Aucune réservation passée.</p>
+      ) : (
+        <table className="manager-table manager-table-reservations">
+          <thead>
+            <tr>
+              <th>Référence</th>
+              <th>Dates</th>
+              <th>Demandeur</th>
+              <th>Statut</th>
+              <th>Montant</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>{past.map(renderReservationRow)}</tbody>
         </table>
       )}
 
