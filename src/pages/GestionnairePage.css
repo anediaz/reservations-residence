@@ -393,6 +393,7 @@
   border-bottom: 1px solid var(--border);
   font-size: 14px;
   vertical-align: top;
+  overflow-wrap: anywhere;
 }
 
 .manager-actions {
