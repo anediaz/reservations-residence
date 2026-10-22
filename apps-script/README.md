@@ -15,7 +15,7 @@ Source du script déployé en application web, sous le compte Google de la rési
    - Origines JavaScript autorisées : l'URL du site déployé (GitHub Pages).
    - Copier le Client ID généré.
 3. **Apps Script** (script.google.com, lié au Sheet ci-dessus, Extensions → Apps Script) :
-   - Copier `Code.gs` et `appsscript.json` dans l'éditeur.
+   - Copier tous les fichiers `.gs` (`Code.gs`, `Auth.gs`, `Reservations.gs`, `ResidentPublic.gs`, `Residents.gs`, `Resources.gs`, `Calendar.gs`, `Notifications.gs`, `Sheets.gs`) et `appsscript.json` dans l'éditeur, un fichier Apps Script par fichier (même espace de noms global, l'ordre n'importe pas).
    - Project Settings → Script Properties → ajouter `GOOGLE_CLIENT_ID` = le Client ID de l'étape 2.
    - Ajouter aussi `APP_URL` = URL racine déployée du frontend, sous-chemin inclus (ex. `https://xxx.github.io/reservations-residence`). Utilisée pour le lien "Voir la réservation dans Prems" dans les mails gestionnaire ; absente = pas de lien, pas bloquant.
    - Déployer → Nouveau déploiement → type "Application Web", exécuter en tant que "Moi", accès "Tout le monde".

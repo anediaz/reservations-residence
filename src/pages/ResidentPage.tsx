@@ -9,21 +9,11 @@ import ResourcePicker from '../components/ResourcePicker'
 import DateRangeCalendar from '../components/DateRangeCalendar'
 import Skeleton from '../components/Skeleton'
 import Spinner from '../components/Spinner'
+import { bookingUnitLabel } from '../lib/format'
 import './ResidentPage.css'
 
 function datesOverlap(aStart: string, aEnd: string, b: BlockedRange): boolean {
   return new Date(aStart) < new Date(b.end_at) && new Date(b.start_at) < new Date(aEnd)
-}
-
-const BOOKING_UNIT_LABELS: Record<string, string> = {
-  nights: 'nuit',
-  hours: 'heure',
-  days: 'jour',
-}
-
-function bookingUnitLabel(unit: string, count: number): string {
-  const label = BOOKING_UNIT_LABELS[unit] || unit || 'unité'
-  return count > 1 ? `${label}s` : label
 }
 
 function ResidentPage() {

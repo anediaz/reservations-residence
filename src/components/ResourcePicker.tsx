@@ -1,16 +1,7 @@
 import type { PublicResource } from '../types/availability'
+import { bookingUnitLabel } from '../lib/format'
 import Skeleton from './Skeleton'
 import './ResourcePicker.css'
-
-const BOOKING_UNIT_LABELS: Record<string, string> = {
-  nights: 'nuit',
-  hours: 'heure',
-  days: 'jour',
-}
-
-function bookingUnitLabel(unit: string): string {
-  return BOOKING_UNIT_LABELS[unit] || unit || 'unité'
-}
 
 interface ResourcePickerProps {
   resources: PublicResource[]

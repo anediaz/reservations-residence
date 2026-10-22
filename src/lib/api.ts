@@ -13,7 +13,7 @@ export function setSessionExpiredHandler(handler: (() => void) | null): void {
   sessionExpiredHandler = handler
 }
 
-export function getScriptUrl(): string | undefined {
+function getScriptUrl(): string | undefined {
   return import.meta.env.VITE_SCRIPT_URL || undefined
 }
 

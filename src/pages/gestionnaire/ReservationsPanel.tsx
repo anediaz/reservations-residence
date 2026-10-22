@@ -99,7 +99,8 @@ function ReservationsPanel({ idToken }: ReservationsPanelProps) {
   }
 
   async function handleRefuse(reservationId: string) {
-    const reason = window.prompt('Motif du refus ?') ?? ''
+    const reason = window.prompt('Motif du refus ?')
+    if (reason === null) return
     setBusyId(reservationId)
     try {
       await refuseRequest(idToken, reservationId, reason)
@@ -141,7 +142,8 @@ function ReservationsPanel({ idToken }: ReservationsPanelProps) {
   }
 
   async function handleCancel(reservationId: string) {
-    const reason = window.prompt('Motif de l\'annulation ?') ?? ''
+    const reason = window.prompt('Motif de l\'annulation ?')
+    if (reason === null) return
     setBusyId(reservationId)
     try {
       await adminCancel(idToken, reservationId, reason)

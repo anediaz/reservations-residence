@@ -42,6 +42,7 @@ function GoogleSignInButton({ clientId, onCredential }: GoogleSignInButtonProps)
         callback: (response) => onCredential(response.credential),
       })
 
+      buttonRef.current.innerHTML = ''
       window.google.accounts.id.renderButton(buttonRef.current, {
         type: 'standard',
         theme: 'outline',
